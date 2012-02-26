@@ -1,9 +1,12 @@
 <?php
 /**
- * @author Han Lin Yap
- * @version 2.0.6 (2011-12-22)
+ * @author Han Lin Yap < http://zencodez.net/ >
+ * @copyright 2012 zencodez.net
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @package Eloquent
+ * @version 3.0.0 - 2012-02-26
  */
-class Eloquent extends Laravel\Database\Eloquent\Model {
+class Eloquent extends Eloquent\Model {
 
 	/**
 	 * List of never allowed strings
@@ -12,6 +15,7 @@ class Eloquent extends Laravel\Database\Eloquent\Model {
 	 *
 	 * @var array
 	 * @access protected
+	 * @since 2.0.6
 	 */
 	protected $_never_allowed_str = array(
 		'document.cookie'	=> '[removed]',
@@ -33,6 +37,7 @@ class Eloquent extends Laravel\Database\Eloquent\Model {
 	 *
 	 * @var array
 	 * @access protected
+	 * @since 2.0.6
 	 */
 	protected $_never_allowed_regex = array(
 		"javascript\s*:"			=> '[removed]',
@@ -42,12 +47,23 @@ class Eloquent extends Laravel\Database\Eloquent\Model {
 	);
 
 	/**
+	 * Table prefix
+	 *
+	 * @return string
+	 * @since 3.0.0
+	 */
+	public function prefix() {
+		return array_get($this->query->connection->config, 'prefix', '');
+	}
+
+	/**
 	 * Save the model to the database.
 	 *
 	 * Do a XSS-clean before saving.
 	 *
 	 * @param bool $safe
 	 * @return bool
+	 * @since 2.0.6
 	 */
 	public function save($safe = true) {
 		# like a "before filter"
@@ -69,6 +85,7 @@ class Eloquent extends Laravel\Database\Eloquent\Model {
 	 *
 	 * @param string $value
 	 * @return string
+	 * @since 2.0.6
 	 */
 	public function xss_clean($value) {
 		$value = preg_replace('#(alert|cmd|passthru|eval|exec|expression|system|fopen|fsockopen|file|file_get_contents|readfile|unlink)(\s*)\((.*?)\)#si', "\\1\\2&#40;\\3&#41;", $value);
@@ -82,5 +99,43 @@ class Eloquent extends Laravel\Database\Eloquent\Model {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Get dynamic all values in a column.
+	 *
+	 * Dynamic queries are caught by the __call magic method and are parsed here.
+	 * They provide a convenient, expressive API for building simple conditions.
+	 *
+	 * @param  string  $method
+	 * @return array
+	 * @since 2.0.9
+	 */
+	private function dynamic_get($method)
+	{
+		// Strip the "get_" off of the method.
+		$finder = substr($method, 4);
+
+		$items = array();
+		foreach($this->get() AS $item) {
+			$items[] = $item->$finder;
+		}
+		return $items;
+	}
+
+	/**
+	 * Magic Method for handling dynamic functions.
+	 *
+	 * This method handles all calls to aggregate functions as well
+	 * as the construction of dynamic where clauses.
+	 *
+	 * @since 2.0.9
+	 */
+	public function __call($method, $parameters) {
+		if (strpos($method, 'get_') === 0) {
+			return $this->dynamic_get($method);
+		}
+
+		return parent::__call($method, $parameters);
 	}
 }
